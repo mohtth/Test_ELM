@@ -1,7 +1,8 @@
 import Browser
+import Http
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onInput)
+import Html.Events exposing (onInput, onClick)
 
 
 -- MAIN
@@ -19,12 +20,13 @@ type alias Model =
   , password : String
   , passwordAgain : String
   , age : Int
+  , submit : Bool
   }
 
 
 init : Model
 init =
-  Model "" "" "" 0
+  Model "" "" "" 0 False
 
 
 
@@ -36,30 +38,35 @@ type Msg
   | Password String
   | PasswordAgain String
   | Age String
+  | Submit
 
 
 update : Msg -> Model -> Model
 update msg model =
   case msg of
     Name name ->
-      { model | name = name }
+      { model | name = name, submit = False }
 
     Password password ->
-      { model | password = password }
+      { model | password = password, submit = False }
 
     PasswordAgain password ->
-      { model | passwordAgain = password }
+      { model | passwordAgain = password, submit = False }
 
     Age age ->
       if String.length age > 0 then
         case String.toInt age of
           Just ageInt ->
-            { model | age = ageInt }
+            { model | age = ageInt, submit = False }
 
           Nothing ->
             model
       else
-        { model | age = 0 }
+        { model | age = 0, submit = False }
+
+    Submit ->
+      { model | submit = True }
+
 
 
 -- VIEW
@@ -73,6 +80,7 @@ view model =
     , viewInput "password" "Re-enter Password" model.passwordAgain PasswordAgain
     , viewInput "age" "Age" (String.fromInt model.age) Age
     , viewValidation model
+    , button [ onClick Submit ] [ text "Submit" ]
     ]
 
 
@@ -80,15 +88,22 @@ viewInput : String -> String -> String -> (String -> msg) -> Html msg
 viewInput t p v toMsg =
   input [ type_ t, placeholder p, value v, onInput toMsg ] []
 
-
-viewValidation : Model -> Html msg
-viewValidation model =
-  if model.password == model.passwordAgain
+viewValidateModel : Model -> Bool
+viewValidateModel model =
+  model.password == model.passwordAgain
     && String.length model.password > 8
     && String.any Char.isDigit model.password
     && String.any Char.isUpper model.password
     && String.any Char.isLower model.password
+    && model.age > 0
+
+viewValidation : Model -> Html msg
+viewValidation model =
+  if model.submit && viewValidateModel model
     then
-    div [ style "color" "green" ] [ text "OK" ]
+      div [ style "color" "green" ] [ text "OK" ]
+  else if model.submit && viewValidateModel model == False
+    then
+      div [ style "color" "red" ] [ text "Passwords do not match!" ]
   else
-    div [ style "color" "red" ] [ text "Passwords do not match!" ]
+    div [ style "color" "black" ] [ text "Enter your informations" ]
