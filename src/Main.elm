@@ -1,32 +1,46 @@
+module Main exposing (..)
+-- Press a button to send a GET request for random cat GIFs.
+--
+-- Read how it works:
+--   https://guide.elm-lang.org/effects/json.html
+--
+
 import Browser
-import Http
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onInput, onClick)
+import Html.Events exposing (..)
+import Http
+import Time exposing (..)
+import Json.Decode exposing (Decoder, field, string, map2)
+import Loading exposing (LoaderType (..), defaultConfig, render)
+
 
 
 -- MAIN
 
 
 main =
-  Browser.sandbox { init = init, update = update, view = view }
+  Browser.element
+    { init = init
+    , update = update
+    , subscriptions = subscriptions
+    , view = view
+    }
 
 
 
 -- MODEL
 
-type alias Model =
-  { name : String
-  , password : String
-  , passwordAgain : String
-  , age : Int
-  , submit : Bool
-  }
+
+type Model
+  = Failure
+  | Loading
+  | Success Image
 
 
-init : Model
-init =
-  Model "" "" "" 0 False
+init : () -> (Model, Cmd Msg)
+init _ =
+  (Loading, getRandomCatGif)
 
 
 
@@ -34,38 +48,37 @@ init =
 
 
 type Msg
-  = Name String
-  | Password String
-  | PasswordAgain String
-  | Age String
-  | Submit
+  = MorePlease
+  | GotGif (Result Http.Error Image)
+
+type alias Image =
+  { url : String
+  , title : String
+  }
 
 
-update : Msg -> Model -> Model
+update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    Name name ->
-      { model | name = name, submit = False }
+    MorePlease ->
+      (Loading, getRandomCatGif)
 
-    Password password ->
-      { model | password = password, submit = False }
+    GotGif result ->
+      case result of
+        Ok baz ->
+          (Success baz, Cmd.none)
 
-    PasswordAgain password ->
-      { model | passwordAgain = password, submit = False }
+        Err _ ->
+          (Failure, Cmd.none)
 
-    Age age ->
-      if String.length age > 0 then
-        case String.toInt age of
-          Just ageInt ->
-            { model | age = ageInt, submit = False }
 
-          Nothing ->
-            model
-      else
-        { model | age = 0, submit = False }
 
-    Submit ->
-      { model | submit = True }
+-- SUBSCRIPTIONS
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+  Sub.none
 
 
 
@@ -75,35 +88,49 @@ update msg model =
 view : Model -> Html Msg
 view model =
   div []
-    [ viewInput "text" "Name" model.name Name
-    , viewInput "password" "Password" model.password Password
-    , viewInput "password" "Re-enter Password" model.passwordAgain PasswordAgain
-    , viewInput "age" "Age" (String.fromInt model.age) Age
-    , viewValidation model
-    , button [ onClick Submit ] [ text "Submit" ]
+    [ h2 [] [ text "Random Cats" ]
+    , viewGif model
     ]
 
 
-viewInput : String -> String -> String -> (String -> msg) -> Html msg
-viewInput t p v toMsg =
-  input [ type_ t, placeholder p, value v, onInput toMsg ] []
+viewGif : Model -> Html Msg
+viewGif model =
+  case model of
+    Failure ->
+      div []
+        [ text "I could not load a random cat for some reason. "
+        , button [ onClick MorePlease ] [ text "Try Again!" ]
+        ]
 
-viewValidateModel : Model -> Bool
-viewValidateModel model =
-  model.password == model.passwordAgain
-    && String.length model.password > 8
-    && String.any Char.isDigit model.password
-    && String.any Char.isUpper model.password
-    && String.any Char.isLower model.password
-    && model.age > 0
+    Loading ->
+      div [ ]
+        [ Loading.render
+            Spinner -- LoaderType
+            { defaultConfig | color = "#333" } -- Config
+            Loading.On -- LoadingState
+        ]
 
-viewValidation : Model -> Html msg
-viewValidation model =
-  if model.submit && viewValidateModel model
-    then
-      div [ style "color" "green" ] [ text "OK" ]
-  else if model.submit && viewValidateModel model == False
-    then
-      div [ style "color" "red" ] [ text "Passwords do not match!" ]
-  else
-    div [ style "color" "black" ] [ text "Enter your informations" ]
+    Success quux ->
+      div []
+        [ button [ onClick MorePlease, style "display" "block" ] [ text "More Please!" ]
+        , img [ src quux.url ] []
+        , h3 [] [ text quux.title ]
+        ]
+
+
+
+-- HTTP
+
+
+getRandomCatGif : Cmd Msg
+getRandomCatGif =
+  Http.get
+    { url = "https://api.giphy.com/v1/gifs/random?api_key=dc6zaTOxFJmzC&tag=cat"
+    , expect = Http.expectJson GotGif gifDecoder
+    }
+
+gifDecoder : Decoder Image
+gifDecoder =
+  map2 Image
+    (field "data" (field "image_url" string))
+    (field "data" (field "title" string))
