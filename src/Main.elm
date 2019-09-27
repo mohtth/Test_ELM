@@ -10,8 +10,9 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Http
-import Time exposing (..)
-import Json.Decode exposing (Decoder, field, string, map2)
+import Bootstrap.CDN as CDN
+import Bootstrap.Grid as Grid
+import Json.Decode exposing (Decoder, field, string, map4, list)
 import Loading exposing (LoaderType (..), defaultConfig, render)
 
 
@@ -43,7 +44,6 @@ init _ =
   (Loading, getRandomCatGif)
 
 
-
 -- UPDATE
 
 
@@ -54,6 +54,8 @@ type Msg
 type alias Image =
   { url : String
   , title : String
+  , typeimg : String
+  , id : String
   }
 
 
@@ -62,7 +64,6 @@ update msg model =
   case msg of
     MorePlease ->
       (Loading, getRandomCatGif)
-
     GotGif result ->
       case result of
         Ok baz ->
@@ -112,9 +113,11 @@ viewGif model =
 
     Success quux ->
       div []
-        [ button [ onClick MorePlease, style "display" "block" ] [ text "More Please!" ]
-        , img [ src quux.url ] []
+        [ img [ src quux.url ] []
+        , button [ onClick MorePlease, style "display" "block" ] [ text "More Please!" ]
         , h3 [] [ text quux.title ]
+        , h4 [] [text ("Is un : " ++ quux.typeimg)]
+        , h4 [] [text ("and its id is : " ++ quux.id)]
         ]
 
 
@@ -131,6 +134,20 @@ getRandomCatGif =
 
 gifDecoder : Decoder Image
 gifDecoder =
-  map2 Image
+  map4 Image
     (field "data" (field "image_url" string))
     (field "data" (field "title" string))
+    (field "data" (field "type" string))
+    (field "data" (field "id" string))
+
+
+getRdmBaconTxt : Cmd Msg
+getRdmBaconTxt =
+  Http.get
+    { url = "https://baconipsum.com/api/?type=meat-and-filler&paras=5&format=text"
+    , expect = Http.expectJson GotBacon baconDecoder
+    }
+
+baconDecoder : Decoder (List String)
+baconDecoder =
+  list string
